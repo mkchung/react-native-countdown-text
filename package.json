@@ -4,7 +4,8 @@
   "description": "React Native Countdown Timer Text",
   "scripts": {
     "compile": "rm -rf ./dist && tsc",
-    "clean": "rm -rf ./dist"
+    "clean": "rm -rf ./dist",
+    "publish:npmjs": "npm publish --access public --registry http://registry.npmjs.org"
   },
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -22,6 +23,9 @@
     "react-native",
     "countdown",
     "timer"
+  ],
+  "files": [
+    "dist"
   ],
   "author": {
     "name": "mkchung",
