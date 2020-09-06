@@ -1,136 +1,68 @@
-import React, {PureComponent} from 'react';
+import React, {memo, useState, useCallback, useEffect} from 'react';
 import {StyleProp, Text, TextStyle} from 'react-native';
-import CountDown from './CountDown';
 
 interface CountDownTextProps {
-  countType: 'seconds' | 'date';
-  timeLeft: number;
-  step: number;
-  startText: string;
+  seconds: number; // 用于倒计时的秒数
+  startText?: string;
   endText?: string;
-  endTime?: number;
-  auto: boolean;
+  running: boolean; // 是否启动
   style?: StyleProp<TextStyle>;
-  intervalText?: (leftSec: number) => string;
-  afterEnd?: (timePassed: number) => void;
+  intervalText?: (remainSeconds: number) => string;
+  afterEnd?: (remainSeconds?: number) => void;
 }
 
-interface CountDownTextState {
-  text: string;
-}
+const CountdownText: React.FC<CountDownTextProps> = (props) => {
+  const {seconds = 60, startText = 'start', endText = 'restart', running = false} = props;
+  const {intervalText = (remainSeconds: number) => `${remainSeconds}秒`, afterEnd, style = {}} = props;
+  const [isRunning, setIsRunning] = useState<boolean>(running);
+  const [currentText, setCurrentText] = useState<string>(startText);
+  const handleCountdown = useCallback((): NodeJS.Timeout => {
+    let intervalID: NodeJS.Timeout;
+    let intervalSec = seconds;
+    setCurrentText(intervalText(--intervalSec));
+    intervalID = setInterval(() => {
+      intervalSec--;
+      setCurrentText(intervalText(intervalSec));
 
-class CountDownText extends PureComponent<CountDownTextProps, CountDownTextState> {
-  private counter: CountDown;
+      if (intervalSec <= 0) {
+        setCurrentText(endText || startText);
+        setIsRunning(false);
+        if (intervalID) {
+          clearInterval(intervalID);
+        }
 
-  constructor(props) {
-    super(props);
+        if (afterEnd) {
+          afterEnd(intervalSec);
+        }
+      }
+    }, 1000);
 
-    this.state = {
-      text: this.props.startText,
+    return intervalID;
+  }, [afterEnd, endText, intervalText, seconds, startText]);
+
+  useEffect(() => {
+    setIsRunning(running);
+  }, [running]);
+
+  useEffect(() => {
+    let intervalID: NodeJS.Timeout | undefined;
+    if (isRunning) {
+      intervalID = handleCountdown();
+    } else {
+      setCurrentText(endText || startText);
+      if (intervalID) {
+        clearInterval(intervalID);
+      }
+    }
+
+    return () => {
+      if (intervalID) {
+        clearInterval(intervalID);
+      }
     };
-  }
+  }, [endText, handleCountdown, isRunning, startText]);
 
-  static defaultProps: CountDownTextProps = {
-    countType: 'seconds',
-    timeLeft: 0,
-    step: -1,
-    startText: '',
-    intervalText: (leftSec: number) => `${leftSec}`,
-    endText: '',
-    auto: false,
-    afterEnd: () => {},
-  };
+  return <Text style={style}>{currentText}</Text>;
+};
 
-  static isTimeEquals(t1: number, t2: number): boolean {
-    return Math.abs(t1 - t2) < 2;
-  }
-
-  UNSAFE_componentWillReceiveProps(nextProps) {
-    let updating: boolean = true;
-
-    // 倒计时的情况
-    if (this.props.step === nextProps.step && this.props.step < 0) {
-      if (this.props.endTime) {
-        // 1. 按起始日期来计时
-        updating = !CountDownText.isTimeEquals(this.props.endTime, nextProps.endTime);
-      } else {
-        // 2. 按间隔秒数来计时
-        updating = !CountDownText.isTimeEquals(nextProps.timeLeft, this.counter.timePassed);
-      }
-    }
-
-    if (updating) {
-      // 重置： 清空计数 + 停止计时
-      this.counter.reset();
-
-      this.counter.setData(
-        Object.assign({}, nextProps, {
-          onInterval: this.onInterval.bind(this),
-          onEnd: this.onEnd.bind(this),
-        }),
-      );
-
-      if (nextProps.auto) {
-        this.start();
-      }
-    }
-  }
-
-  componentDidMount() {
-    this.counter = new CountDown(
-      Object.assign({}, this.props, {
-        onInterval: this.onInterval.bind(this),
-        onEnd: this.onEnd.bind(this),
-      }),
-    );
-
-    if (this.counter.timeLeft <= 0 && this.counter.step <= 0) {
-      return this.end();
-    }
-
-    if (this.props.auto) this.start();
-  }
-
-  componentWillUnmount() {
-    this.reset();
-  }
-
-  start() {
-    this.counter.start();
-  }
-
-  end() {
-    this.counter.end();
-  }
-
-  reset() {
-    this.counter.reset();
-  }
-
-  render() {
-    return <Text style={this.props.style}> {this.state.text} </Text>;
-  }
-
-  getTimePassed(): number {
-    return this.counter.timePassed;
-  }
-
-  onInterval(...args) {
-    if (this.props.intervalText) {
-      this.setState({text: this.props.intervalText.apply(null, args)});
-    }
-  }
-
-  onEnd(timePassed) {
-    const {afterEnd, endText, startText} = this.props;
-    this.setState({
-      text: endText || startText,
-    });
-
-    if (afterEnd) {
-      afterEnd(timePassed);
-    }
-  }
-}
-
-export default CountDownText;
+export default memo(CountdownText);
